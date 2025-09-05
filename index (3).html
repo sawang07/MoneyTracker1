@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -13,17 +14,23 @@
       background-color: #121212;
       color: #f0f0f0;
     }
-    h2, h3, h4 {
+
+    h2,
+    h3,
+    h4 {
       color: #e0e0e0;
     }
+
     .balance {
       font-size: 32px;
       font-weight: bold;
       margin-bottom: 10px;
     }
+
     .buttons {
       margin-bottom: 20px;
     }
+
     .buttons button {
       background-color: #1f1f1f;
       color: #fff;
@@ -35,9 +42,11 @@
       cursor: pointer;
       transition: background-color 0.3s;
     }
+
     .buttons button:hover {
       background-color: #2a2a2a;
     }
+
     input[type="number"] {
       padding: 10px;
       font-size: 16px;
@@ -48,39 +57,48 @@
       background: #2b2b2b;
       color: #fff;
     }
+
     .log-entry {
       background: #1e1e1e;
       padding: 10px 15px;
       margin-bottom: 6px;
       border-radius: 6px;
     }
+
     .log-entry span {
       color: #888;
       margin-right: 6px;
     }
+
     .income {
       border-left: 4px solid #00c896;
       color: #b2f5dc;
     }
+
     .expense {
       border-left: 4px solid #ff5c5c;
       color: #ffcaca;
     }
+
     #summaryList {
       margin-top: 25px;
     }
+
     #summaryList p {
       margin: 4px 0;
       padding-left: 6px;
       border-left: 3px solid #00c896;
     }
+
     button:focus,
     input:focus {
       outline: none;
     }
+
     ::placeholder {
       color: #aaa;
     }
+
     hr {
       border: 0;
       height: 1px;
@@ -89,6 +107,7 @@
     }
   </style>
 </head>
+
 <body>
   <h2>💳 ยอดเงินคงเหลือ: <span id="balance"></span> บาท</h2>
 
@@ -98,11 +117,14 @@
     <button onclick="spend(100)">ใช้ 100</button>
     <button onclick="spend(500)">ใช้ 500</button>
     <br /><br />
-    <input type="number" id="customAmount" placeholder="ระบุจำนวน" />
+    <input type="number" id="customAmount" placeholder="เช่น 150" />
     <button onclick="spendCustom()">ใช้เงิน</button>
     <button onclick="addCustom()">เพิ่มเงิน</button>
     <br /><br />
     <button onclick="resetBalance()">🔄 รีเซ็ตยอดเงิน</button>
+    <button onclick="exportData()">📤 สำรองข้อมูล</button>
+    <button onclick="importData()">📥 เรียกคืนข้อมูล</button>
+    <input type="file" id="fileInput" style="display:none" />
   </div>
 
   <hr />
@@ -137,7 +159,7 @@
       const now = new Date();
       const time = now.toLocaleTimeString();
       const date = now.toISOString().split('T')[0];
-      const entry = { text, time, date, amount };
+      const entry = {text, time, date, amount};
       logData.unshift(entry);
       renderLogs();
       saveData();
@@ -147,6 +169,7 @@
       const list = document.getElementById('logList');
       list.innerHTML = '';
       const summary = {};
+      let totalIncome = 0, totalExpense = 0;
 
       logData.forEach(entry => {
         const div = document.createElement('div');
@@ -156,6 +179,9 @@
 
         if (!summary[entry.date]) summary[entry.date] = 0;
         if (entry.amount < 0) summary[entry.date] += -entry.amount;
+
+        if (entry.amount > 0) totalIncome += entry.amount;
+        else totalExpense += -entry.amount;
       });
 
       const sumList = document.getElementById('summaryList');
@@ -165,10 +191,14 @@
         p.textContent = `${date}: ใช้ไป ${summary[date].toLocaleString()} บาท`;
         sumList.appendChild(p);
       }
+
+      sumList.innerHTML += `<p>💰 รวมรายรับ: ${totalIncome.toLocaleString()} บาท</p>`;
+      sumList.innerHTML += `<p>💸 รวมรายจ่าย: ${totalExpense.toLocaleString()} บาท</p>`;
     }
 
     function spend(amt) {
       if (amt <= 0 || isNaN(amt)) return;
+      if (amt > balance) return alert('ยอดเงินไม่เพียงพอ');
       balance -= amt;
       updateBalance();
       log(`ใช้เงิน ${amt} บาท`, -amt);
@@ -196,17 +226,61 @@
     }
 
     function resetBalance() {
-      if (confirm('ต้องการรีเซ็ตยอดเงินใช่หรือไม่? ยอดและประวัติจะถูกลบทั้งหมด')) {
-        balance = 1000;
-        logData = [];
-        updateBalance();
-        renderLogs();
-        saveData();
-      }
+      const newBalance = prompt('กรุณากรอกยอดเงินเริ่มต้นใหม่ (หรือเว้นว่างเพื่อใช้ 1000):');
+      if (newBalance === null) return;
+      const value = parseFloat(newBalance);
+      balance = (!isNaN(value) && value > 0) ? value : 1000;
+      logData = [];
+      updateBalance();
+      renderLogs();
+      saveData();
+    }
+
+    function exportData() {
+      const data = {
+        balance: balance,
+        logs: logData
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "money-backup.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importData() {
+      const input = document.getElementById("fileInput");
+      input.onchange = () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const data = JSON.parse(e.target.result);
+            if (typeof data.balance === "number" && Array.isArray(data.logs)) {
+              balance = data.balance;
+              logData = data.logs;
+              updateBalance();
+              renderLogs();
+              saveData();
+              alert("นำเข้าข้อมูลเรียบร้อยแล้ว!");
+            } else {
+              alert("ไฟล์ไม่ถูกต้อง");
+            }
+          } catch {
+            alert("ไม่สามารถอ่านไฟล์ได้");
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
     }
 
     updateBalance();
     renderLogs();
   </script>
 </body>
+
 </html>
